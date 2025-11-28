@@ -3,10 +3,14 @@
 
 #include "Shaders.h"
 
-#define MAXSHADERSIZE 10240
+#include <filesystem>
+#include <fstream>
 
-char vertex_shader[MAXSHADERSIZE] = {0};
-char fragment_shader[MAXSHADERSIZE] = {0};
+
+char path[255] = "Texture";
+
+std::chrono::time_point<std::filesystem::__file_clock> vertex_last_update;
+std::chrono::time_point<std::filesystem::__file_clock> fragment_last_update;
 
 const char* types[] = {"int", "ivec2", "ivec3", "float", "vec2", "vec3"};
 std::unordered_map<std::string, const std::type_info*> uniform_list;
@@ -18,8 +22,10 @@ int new_current_type = 0;
 
 
 
-inline std::function<void(CW::Renderer::iRenderer *renderer)> uniform_editor(CW::Renderer::DrawShader *shader, CW::Renderer::Uniform *uniform){
+inline std::function<void(CW::Renderer::iRenderer *renderer)> settings(CW::Renderer::DrawShader *shader, CW::Renderer::Uniform *uniform){
 return [shader, uniform](CW::Renderer::iRenderer *renderer){
+  ImGui::InputText("Path: ", path, 255);
+
   for(std::pair<const std::string, const std::type_info*>& el : uniform_list){
     if(el.second == &typeid(int)){
       int value = (*uniform)[el.first]->get<int>();
@@ -99,36 +105,51 @@ return [shader, uniform](CW::Renderer::iRenderer *renderer){
 
 
 
+std::string read_file(const std::string& path){
+  std::ifstream file(path);
+  std::string data;
+  if (file.is_open()) {
+    std::string line;
+    while (std::getline(file, line)) {
+        data += line + "\n";
+    }
+    file.close();
+  }
+
+  return data;
+}
 
 
 
 
-inline std::function<void(CW::Renderer::iRenderer *renderer)> vertex_shader_editor(CW::Renderer::DrawShader *shader, CW::Renderer::Uniform *uniform){
-return [shader, uniform](CW::Renderer::iRenderer *renderer){
-  ImVec2 size = ImGui::GetContentRegionAvail();
-  if(ImGui::InputTextMultiline("###", vertex_shader, MAXSHADERSIZE, size)){
-    shader->setVertexShader(vertex_shader);
+void update_shaders(CW::Renderer::DrawShader *shader){
+  std::string fragment_shader_path = "../Shaders/"+std::string(path)+"/shader.frag";
+  std::string vertex_shader_path = "../Shaders/"+std::string(path)+"/shader.vert";
+
+  bool update = 0;
+
+  if(std::string(path).empty() || !std::filesystem::exists("../Shaders/" + std::string(path)))
+    return;
+
+  std::chrono::time_point<std::filesystem::__file_clock> vertex_current_time = std::filesystem::last_write_time(vertex_shader_path);
+  std::chrono::time_point<std::filesystem::__file_clock> fragment_current_time = std::filesystem::last_write_time(fragment_shader_path);
+
+
+  if(vertex_current_time != vertex_last_update){
+    shader->setVertexShader(read_file(vertex_shader_path));
+    vertex_last_update = vertex_current_time;
+    update = 1;
+  }
+
+  if(fragment_current_time != fragment_last_update){
+    shader->setFragmentShader(read_file(fragment_shader_path));
+    fragment_last_update = fragment_current_time;
+    update = 1;
+  }
+
+  if(update)
     shader->compile();
-  };
 };
-};
-
-
-
-
-
-
-
-inline std::function<void(CW::Renderer::iRenderer *renderer)> fragment_shader_editor(CW::Renderer::DrawShader *shader, CW::Renderer::Uniform *uniform){
-return [shader, uniform](CW::Renderer::iRenderer *renderer){
-  ImVec2 size = ImGui::GetContentRegionAvail();
-  if(ImGui::InputTextMultiline("##", fragment_shader, MAXSHADERSIZE, size)){
-    shader->setFragmentShader(fragment_shader);
-    shader->compile();
-  };
-};
-};
-
 
 
 
@@ -167,21 +188,17 @@ int main(){
     1.0f, 0.0f
   });
 
-  strncpy(vertex_shader, Texture::vertex.c_str(), Texture::vertex.size());
-  strncpy(fragment_shader, Texture::fragment.c_str(), Texture::vertex.size());
-  
-  CW::Renderer::DrawShader shader(Texture::vertex, fragment_shader);
+  CW::Renderer::DrawShader shader(Texture::vertex, Texture::fragment);
   CW::Renderer::Uniform uniform;
   shader.getUniforms().emplace_back(&uniform);
   uniform["uTexture"]->set<int>(0);
 
-
-  gui.addWindow("Vertex Shader Editor", vertex_shader_editor(&shader, &uniform));
-  gui.addWindow("Fragment Shader Editor", fragment_shader_editor(&shader, &uniform));
-  gui.addWindow("Uniform Editor", uniform_editor(&shader, &uniform));
+  gui.addWindow("Uniform Editor", settings(&shader, &uniform));
 
 
   while(!window.getWindowData()->should_close){
+    update_shaders(&shader);
+
     window.beginFrame();
 
     texture.bind();
