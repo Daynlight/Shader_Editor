@@ -14,6 +14,10 @@ char new_name[255] = {0};
 int new_current_type = 0;
 
 
+
+
+
+
 inline std::function<void(CW::Renderer::iRenderer *renderer)> uniform_editor(CW::Renderer::DrawShader *shader, CW::Renderer::Uniform *uniform){
 return [shader, uniform](CW::Renderer::iRenderer *renderer){
   for(std::pair<const std::string, const std::type_info*>& el : uniform_list){
@@ -94,6 +98,11 @@ return [shader, uniform](CW::Renderer::iRenderer *renderer){
 };
 
 
+
+
+
+
+
 inline std::function<void(CW::Renderer::iRenderer *renderer)> vertex_shader_editor(CW::Renderer::DrawShader *shader, CW::Renderer::Uniform *uniform){
 return [shader, uniform](CW::Renderer::iRenderer *renderer){
   ImVec2 size = ImGui::GetContentRegionAvail();
@@ -105,6 +114,11 @@ return [shader, uniform](CW::Renderer::iRenderer *renderer){
 };
 
 
+
+
+
+
+
 inline std::function<void(CW::Renderer::iRenderer *renderer)> fragment_shader_editor(CW::Renderer::DrawShader *shader, CW::Renderer::Uniform *uniform){
 return [shader, uniform](CW::Renderer::iRenderer *renderer){
   ImVec2 size = ImGui::GetContentRegionAvail();
@@ -114,6 +128,13 @@ return [shader, uniform](CW::Renderer::iRenderer *renderer){
   };
 };
 };
+
+
+
+
+
+
+
 
 
 
