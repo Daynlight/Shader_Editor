@@ -13,9 +13,10 @@ char path_last[255] = "";
 std::chrono::time_point<std::filesystem::__file_clock> vertex_last_update{};
 std::chrono::time_point<std::filesystem::__file_clock> fragment_last_update{};
 std::chrono::time_point<std::filesystem::__file_clock> uniform_last_update{};
+std::chrono::time_point<std::filesystem::__file_clock> texture_last_update{};
 
-const char* types[] = {"int", "ivec2", "ivec3", "float", "vec2", "vec3"};
 CW::Renderer::Uniform *uniform;
+CW::Renderer::Texture *texture;
 
 
 
@@ -154,30 +155,34 @@ void update_shaders(CW::Renderer::DrawShader *shader){
   std::string fragment_shader_path = "../Shaders/"+std::string(path)+"/shader.frag";
   std::string vertex_shader_path = "../Shaders/"+std::string(path)+"/shader.vert";
   std::string uniform_path = "../Shaders/"+std::string(path)+"/uniforms.txt";
+  std::string texture_path = "../Shaders/"+std::string(path)+"/texture.png";
 
   bool update = 0;
 
-  if(path_last != path) update = 1;
+  if (strcmp(path_last, path) != 0) update = 1;
 
   std::chrono::time_point<std::filesystem::__file_clock> vertex_current_time = vertex_last_update;
   std::chrono::time_point<std::filesystem::__file_clock> fragment_current_time = fragment_last_update;
   std::chrono::time_point<std::filesystem::__file_clock> uniform_current_time = uniform_last_update;
+  std::chrono::time_point<std::filesystem::__file_clock> texture_current_time = texture_last_update;
 
-  if(std::filesystem::exists(fragment_shader_path))
-    vertex_current_time = std::filesystem::last_write_time(vertex_shader_path);
   if(std::filesystem::exists(vertex_shader_path))
+    vertex_current_time = std::filesystem::last_write_time(vertex_shader_path);
+  if(std::filesystem::exists(fragment_shader_path))
     fragment_current_time = std::filesystem::last_write_time(fragment_shader_path);
   if(std::filesystem::exists(uniform_path))
     uniform_current_time = std::filesystem::last_write_time(uniform_path);
+  if(std::filesystem::exists(texture_path))
+    texture_current_time = std::filesystem::last_write_time(texture_path);
 
 
-  if(vertex_current_time != vertex_last_update || path_last != path){
+  if(vertex_current_time != vertex_last_update || strcmp(path_last, path) != 0){
     shader->setVertexShader(read_file(vertex_shader_path));
     vertex_last_update = vertex_current_time;
     update = 1;
   }
 
-  if(fragment_current_time != fragment_last_update || path_last != path){
+  if(fragment_current_time != fragment_last_update || strcmp(path_last, path) != 0){
     shader->setFragmentShader(read_file(fragment_shader_path));
     fragment_last_update = fragment_current_time;
     update = 1;
@@ -186,11 +191,17 @@ void update_shaders(CW::Renderer::DrawShader *shader){
   if(update)
     shader->compile();
 
-  if(uniform_last_update != uniform_current_time || path_last != path){
+  if(uniform_last_update != uniform_current_time || strcmp(path_last, path) != 0){
     updateUniforms(uniform_path);
+    (*uniform)["uTexture"]->set<int>(0);
     uniform_last_update = uniform_current_time;
   }
 
+  if(texture_current_time != texture_last_update || strcmp(path_last, path) != 0){
+    texture->load(texture_path);
+    texture_last_update = texture_current_time;
+  }
+  
   strcpy(path_last, path);
   
 };
@@ -216,10 +227,7 @@ int main(){
   gui.setWorkspace(workspace());
 
   uniform = new CW::Renderer::Uniform();
-
-  CW::Renderer::Texture texture;
-  if(texture.load("../Assets/image.png"))
-    return -1;
+  texture = new CW::Renderer::Texture();
 
   CW::Renderer::Mesh viewport = CW::Renderer::Mesh(
   {
@@ -254,11 +262,11 @@ int main(){
 
     window.beginFrame();
 
-    texture.bind();
+    texture->bind();
     shader.bind();
     viewport.render();
     shader.unbind();
-    texture.unbind();
+    texture->unbind();
 
     gui.render();
 
@@ -274,6 +282,7 @@ int main(){
   }
 
 
+  delete texture;
   delete uniform;
 
   return 0;
