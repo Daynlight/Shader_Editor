@@ -90,11 +90,12 @@ void convertValue(const std::string& value, const std::type_info& uniform_type, 
 
 
 void loadUniform(CW::Renderer::Uniform *uniform, const std::string& name, const std::string type, const std::string& values){
-  const std::type_info& uniform_type = *types[type];
   if (types.find(type) == types.end()) {
     printf("Unknown type: %s\n", type.c_str());
     return;
   };
+  
+  const std::type_info& uniform_type = *types[type];
   
   unsigned int size_of_type = 
   std::visit([](auto&& val){
