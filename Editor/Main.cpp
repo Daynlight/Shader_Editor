@@ -7,11 +7,12 @@
 #include <fstream>
 
 
-char path[255] = "Texture";
+char path[255] = "";
+char path_last[255] = "";
 
-std::chrono::time_point<std::filesystem::__file_clock> vertex_last_update;
-std::chrono::time_point<std::filesystem::__file_clock> fragment_last_update;
-std::chrono::time_point<std::filesystem::__file_clock> uniform_last_update;
+std::chrono::time_point<std::filesystem::__file_clock> vertex_last_update{};
+std::chrono::time_point<std::filesystem::__file_clock> fragment_last_update{};
+std::chrono::time_point<std::filesystem::__file_clock> uniform_last_update{};
 
 const char* types[] = {"int", "ivec2", "ivec3", "float", "vec2", "vec3"};
 CW::Renderer::Uniform *uniform;
@@ -156,6 +157,8 @@ void update_shaders(CW::Renderer::DrawShader *shader){
 
   bool update = 0;
 
+  if(path_last != path) update = 1;
+
   std::chrono::time_point<std::filesystem::__file_clock> vertex_current_time = vertex_last_update;
   std::chrono::time_point<std::filesystem::__file_clock> fragment_current_time = fragment_last_update;
   std::chrono::time_point<std::filesystem::__file_clock> uniform_current_time = uniform_last_update;
@@ -168,13 +171,13 @@ void update_shaders(CW::Renderer::DrawShader *shader){
     uniform_current_time = std::filesystem::last_write_time(uniform_path);
 
 
-  if(vertex_current_time != vertex_last_update){
+  if(vertex_current_time != vertex_last_update || path_last != path){
     shader->setVertexShader(read_file(vertex_shader_path));
     vertex_last_update = vertex_current_time;
     update = 1;
   }
 
-  if(fragment_current_time != fragment_last_update){
+  if(fragment_current_time != fragment_last_update || path_last != path){
     shader->setFragmentShader(read_file(fragment_shader_path));
     fragment_last_update = fragment_current_time;
     update = 1;
@@ -183,10 +186,12 @@ void update_shaders(CW::Renderer::DrawShader *shader){
   if(update)
     shader->compile();
 
-  if(uniform_last_update != uniform_current_time){
+  if(uniform_last_update != uniform_current_time || path_last != path){
     updateUniforms(uniform_path);
     uniform_last_update = uniform_current_time;
   }
+
+  strcpy(path_last, path);
   
 };
 
@@ -200,6 +205,12 @@ void update_shaders(CW::Renderer::DrawShader *shader){
 
 
 int main(){
+  std::string path_str = read_file("project.ini");
+  if (!path_str.empty() && path_str.back() == '\n') path_str.pop_back(); // remove newline
+  strncpy(path, path_str.c_str(), sizeof(path)-1);
+  path[sizeof(path)-1] = '\0';
+  
+
   CW::Renderer::Renderer window;
   CW::Gui::Gui gui(&window);
   gui.setWorkspace(workspace());
@@ -234,7 +245,8 @@ int main(){
   shader.getUniforms().emplace_back(uniform);
   (*uniform)["uTexture"]->set<int>(0);
 
-  // gui.addWindow("Uniform Editor", settings(&shader, &uniform));
+
+  update_shaders(&shader);
 
 
   while(!window.getWindowData()->should_close){
@@ -253,6 +265,14 @@ int main(){
     window.swapBuffer();
     window.windowEvents();
   };
+
+
+  std::ofstream file("project.ini");
+  if (file.is_open()) {
+    file << std::string(path);
+    file.close();
+  }
+
 
   delete uniform;
 
