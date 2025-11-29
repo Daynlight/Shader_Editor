@@ -2,6 +2,8 @@
 
 #include <filesystem>
 #include <fstream>
+#include <type_traits>
+#include <variant>
 
 
 
@@ -23,15 +25,6 @@ const std::string& fragment_shader_path = "shader.frag";
 const std::string& vertex_shader_path = "shader.vert";
 const std::string& uniform_path = "uniforms.txt";
 const std::string& texture_path = "texture.png";
-
-std::unordered_map<std::string, const std::type_info*> types = {
-  {"int", &typeid(int)},
-  {"ivec2", &typeid(glm::ivec2)},
-  {"ivec3", &typeid(glm::ivec3)},
-  {"float", &typeid(float)},
-  {"vec2", &typeid(glm::vec2)},
-  {"vec3", &typeid(glm::vec3)}
-};
 
 
 
@@ -73,51 +66,71 @@ inline std::vector<std::string> split(const std::string &s, char delimiter) {
 };
 
 
+template<std::size_t I = 0>
+constexpr std::size_t type_index(const std::type_info& t) {
+    if constexpr (I < std::variant_size_v<CW::Renderer::DataVariants>) {
+        using T = std::variant_alternative_t<I, CW::Renderer::DataVariants>;
+        if (t == typeid(T)) return I;
+        else return type_index<I + 1>(t);
+    } else {
+        return -1; // not found
+    }
+}
 
 
-void convertValue(const std::string& value, const std::type_info& uniform_type, char* out){
-  if (uniform_type == typeid(int)) {
-    int v = std::stoi(value);
-    std::memcpy(out, &v, sizeof(int));
-  }
-  else if (uniform_type == typeid(float)) {
-    float v = std::stof(value);
-    std::memcpy(out, &v, sizeof(float));
-  }
+
+template<typename T>
+T convertValue(const std::string& value){
+  T v;
+  if (typeid(T) == typeid(int))
+    v = std::stoi(value);
+  else if(typeid(T) == typeid(float))
+    v = std::stof(value);
+  
+  return v;
+};
+
+
+template<typename T>
+std::vector<T> convertArray(const std::vector<std::string>* values_list){
+  std::vector<T> values_list_converted;
+  for(int i = 0; i < values_list->size(); i++){
+    T v = convertValue<T>((*values_list)[i]);
+    values_list_converted.emplace_back(v);
+  };
+  return values_list_converted;
 };
 
 
 
-
 void loadUniform(CW::Renderer::Uniform *uniform, const std::string& name, const std::string type, const std::string& values){
-  if (types.find(type) == types.end()) {
-    printf("Unknown type: %s\n", type.c_str());
-    return;
-  };
-  
-  const std::type_info& uniform_type = *types[type];
-  
-  unsigned int size_of_type = 
-  std::visit([](auto&& val){
-    return sizeof(val);
-  }, (*uniform)[name]->value);
-
   std::vector<std::string> values_list = split(values, ',');
   
 
-  char values_list_converted[values_list.size() * size_of_type] = {0};
-  for(int i = 0; i < values_list.size(); i++){
-    unsigned int offset = i * size_of_type;
-    char converted[size_of_type] = {0};
-    convertValue(values_list[i], uniform_type, converted);
-    strncpy(values_list_converted + offset, converted, size_of_type);
+  if(type == "int"){
+    std::vector<int> converted = convertArray<int>(&values_list);    
+    (*uniform)[name]->set<int>(converted[0]);
+  }
+  else if(type == "ivec2"){
+    std::vector<int> converted = convertArray<int>(&values_list);    
+    (*uniform)[name]->set<glm::ivec2>({converted[0], converted[1]});
+  }
+  else if(type == "ivec3"){
+    std::vector<int> converted = convertArray<int>(&values_list);    
+    (*uniform)[name]->set<glm::ivec3>({converted[0], converted[1], converted[2]});
+  }
+  else if(type == "float"){
+    std::vector<float> converted = convertArray<float>(&values_list);    
+    (*uniform)[name]->set<float>(converted[0]);
+  }
+  else if(type == "vec2"){
+    std::vector<float> converted = convertArray<float>(&values_list);    
+    (*uniform)[name]->set<glm::vec2>({converted[0], converted[1]});
+  }
+  else if(type == "vec3"){
+    std::vector<float> converted = convertArray<float>(&values_list);    
+    (*uniform)[name]->set<glm::vec3>({converted[0], converted[1], converted[2]});
   };
-
-
-
-  std::visit([&](auto&& val){
-    (*uniform)[name]->set<std::decay_t<decltype(val)>>(val);
-  }, (*uniform)[name]->value);
 };
 
 
@@ -256,6 +269,7 @@ CW::Renderer::Mesh canvas(){
 ////////////////////////////////////////////////////
 int main(){
   CW::Renderer::Renderer window;
+  window.setWindowTitle("Shader Editor");
   
   CW::Renderer::Uniform uniform;
   CW::Renderer::Texture texture;
